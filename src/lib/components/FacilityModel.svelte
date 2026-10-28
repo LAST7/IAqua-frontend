@@ -1,6 +1,12 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { createFacilityModel, FACILITY_FLOORS, type ViewMode } from "$lib/three/facility-model";
+    import {
+        createFacilityModel,
+        FACILITY_FLOORS,
+        type ModelLoadState,
+        type ModelQuality,
+        type ViewMode
+    } from "$lib/three/facility-model";
 
     let {
         selectedPool = "",
@@ -21,6 +27,13 @@
     let error = $state("");
     let infoTitle = $state("");
     let infoDetail = $state("");
+    let loadState = $state<ModelLoadState>({
+        quality: "low",
+        progress: 0,
+        stage: "准备轻量模型",
+        ready: false,
+        loadingLow: true
+    });
     let canvasHost: HTMLDivElement;
     let engine: ReturnType<typeof createFacilityModel>;
     const floorInfo = $derived(
@@ -43,6 +56,7 @@
                 infoDetail = detail;
             },
             onPoolHover: (name) => (hoveredPool = name),
+            onStatus: (state) => (loadState = state),
             onError: (cause) => {
                 error = String(cause);
             }
@@ -77,6 +91,32 @@
             class="border border-teal-600/50 px-3 py-2 text-xs font-bold text-teal-700 dark:text-teal-200"
             class:!text-teal-200={dark}>{mode === "complex" ? "总览模型" : "二层设施模型"}</span
         >
+    </div>
+    <div class="mb-3 border border-slate-700 bg-slate-950/90 p-3 text-cyan-100">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-xs" role="status">{loadState.stage} · {loadState.progress}%</p>
+            <div class="flex gap-2" role="group" aria-label="模型精度">
+                {#each ["low", "high"] as quality}
+                    <button
+                        type="button"
+                        class="min-h-10 border border-cyan-700 px-3 py-2 text-xs text-cyan-100 enabled:hover:bg-cyan-900 disabled:cursor-wait disabled:opacity-40"
+                        class:bg-cyan-900={loadState.quality === quality}
+                        aria-pressed={loadState.quality === quality}
+                        disabled={quality === "high"
+                            ? !loadState.ready
+                            : loadState.loadingLow || loadState.fatal}
+                        onclick={() => engine?.selectQuality(quality as ModelQuality)}
+                        >{quality === "low" ? "低精度 · 流畅" : "高精度 · 细节"}</button
+                    >
+                {/each}
+            </div>
+        </div>
+        <progress
+            class="mt-2 h-1 w-full accent-cyan-400"
+            value={loadState.progress}
+            max="100"
+            aria-label={loadState.loadingLow ? "低精度模型加载进度" : "高精度模型准备进度"}
+        ></progress>
     </div>
     <div class="min-h-[590px] overflow-hidden border border-slate-700 bg-[#020914] text-slate-100">
         <div
